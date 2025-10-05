@@ -2,7 +2,7 @@
 
 ### How to build 
 ```bash
-docker compose up
+docker-compose up
 ```
 ### Rebuild removing cache
 ```bash
@@ -20,9 +20,11 @@ Links to call the service:
 
 - [Scrap sync](http://localhost:8000/scrap-sync)
 
-- [Scrap async](http://localhost:8000/scrap-async)
+- [Scrap async](http://localhost:8000/busca_fatura)
 
+Ver browser em ação: http://localhost:7900/?autoconnect=1&resize=scale&password=secret
 
+Selenium Grid UI: http://localhost:4444/ui/#
 
 
 

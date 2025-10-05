@@ -8,7 +8,13 @@ services:
       - "8000:5000"
   selenium:
     image: selenium/standalone-firefox:latest
+    volumes:
+      - ./downloads:/home/seluser/Downloads
     ports:
       - "4444:4444"
       - "7900:7900"
+    environment:
+      - SE_NODE_MAX_SESSIONS=3
+      - SE_NODE_SESSION_TIMEOUT=300
+    shm_size: 2gb
 
