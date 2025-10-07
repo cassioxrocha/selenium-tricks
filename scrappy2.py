@@ -10,17 +10,17 @@ import time
 
 # Verificar se as variáveis existem (foram passadas do app.py)
 if 'uc' not in locals():
-    uc = "12345678"  # valor padrão para teste
-if 'ano_mes' not in locals():
-    ano_mes = "202410"  # valor padrão para teste
+    uc = "10039814775"  # valor padrão para teste
+if 'mes_ano' not in locals():
+    mes_ano = "AGO/2025"  # valor padrão para teste
 if 'documento' not in locals():
-    documento = ""
+    documento = "70147558620"
 if 'nome' not in locals():
-    nome = ""
+    nome = "CASSIO XAVIER ROCHA"
 if 'data_nascimento' not in locals():
-    data_nascimento = ""
+    data_nascimento = "22/11/1968"
 
-print(f"Parâmetros recebidos: UC={uc}, Ano/Mês={ano_mes}, Documento={documento}")
+print(f"Parâmetros recebidos: UC={uc}, Mês/Ano={mes_ano}, Documento={documento}, Nome={nome}, Data de Nascimento={data_nascimento}")
 
 options = Options()
 options.add_argument('--ignore-ssl-errors=yes')
@@ -88,71 +88,115 @@ wait.until(EC.element_to_be_clickable((By.XPATH, "//option[. = 'Não recebeu a f
 time.sleep(3)
 wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btEnviar"))).click()
 time.sleep(3)
-print("Clicando no botão Download...")
-wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Download"))).click()
-time.sleep(3)
-print("Clicando no botão Modal...")
-wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
 
-print("Aguardando download ser concluído...")
-time.sleep(8)  # Espera mais longa para download
+# mes_ano já vem no formato esperado na tabela (ex: "AGO/2025")
+pdf_disponivel = False  # Inicializar como False por padrão
+pdf_info = None  # Inicializar pdf_info também
 
-# Verificar se arquivo apareceu durante a espera
-for i in range(3):
-    time.sleep(2)
+try:
+    periodo_procurado = mes_ano
+    print(f"Procurando período: {periodo_procurado}")
+    
+    # Aguardar a tabela carregar
+    time.sleep(3)
+    
+    # Procurar pela linha que contém o mês/ano desejado
+    xpath_periodo = f"//td[contains(text(), '{periodo_procurado}')]"
+    
     try:
-        files = os.listdir(download_dir)
-        pdf_files = [f for f in files if f.endswith('.pdf')]
-        print(f"Verificação {i+1}: {len(files)} arquivos, {len(pdf_files)} PDFs na pasta {download_dir}")
-        if pdf_files:
-            print(f"PDFs encontrados: {pdf_files}")
-            break
-    except:
-        print(f"Verificação {i+1}: erro ao acessar pasta")
+        # Verificar se o período existe na tabela
+        periodo_cell = wait.until(EC.presence_of_element_located((By.XPATH, xpath_periodo)))
+        print(f"Período {periodo_procurado} encontrado na tabela")
+        
+        # DEBUG: Tirar screenshot da tabela
+        driver.save_screenshot(f"tabela_encontrada_{periodo_procurado.replace('/', '_')}.png")
+        
+        # DEBUG: Mostrar estrutura da linha
+        try:
+            linha_periodo = periodo_cell.find_element(By.XPATH, "./..")
+            print(f"HTML da linha: {linha_periodo.get_attribute('innerHTML')[:300]}...")
+            
+            # DEBUG: Listar todos os links na linha
+            all_links = linha_periodo.find_elements(By.TAG_NAME, "a")
+            print(f"Links encontrados na linha ({len(all_links)}):")
+            for i, link in enumerate(all_links):
+                onclick = link.get_attribute('onclick') or 'sem onclick'
+                texto = link.text or 'sem texto'
+                print(f"  Link {i+1}: texto='{texto}', onclick='{onclick[:50]}...'")
+        except Exception as debug_error:
+            print(f"Erro no debug da linha: {debug_error}")
+        
+        # Encontrar e clicar no botão Download da linha
+        try:
+            linha_periodo = periodo_cell.find_element(By.XPATH, "./..")  # Pega a linha (tr) pai
+            # Procurar por link com onclick contendo 'mostraFaturaCompleta' ou texto 'Download'
+            download_link = linha_periodo.find_element(By.XPATH, ".//a[contains(@onclick, 'mostraFaturaCompleta') or contains(text(), 'Download')]")
+            print("Clicando no link de download...")
+            download_link.click()
+            
+            time.sleep(3)
+            print("Clicando no botão Modal...")
+            wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
+            
+            print("Aguardando download ser concluído...")
+            time.sleep(8)  # Espera para download
+            
+            pdf_disponivel = True
+        except Exception as e:
+            print(f"Erro ao clicar no download: {e}")
+            pdf_disponivel = False
+            time.sleep(3)
+            print("Clicando no botão Modal...")
+            wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
+            
+            print("Aguardando download ser concluído...")
+            time.sleep(8)  # Espera mais longa para download
+            
+            pdf_disponivel = True
+        else:
+            print("Nenhum método conseguiu clicar no botão Download")
+            pdf_disponivel = False
+        
+    except Exception as e:
+        print(f"Período {periodo_procurado} não encontrado na tabela: {e}")
+        pdf_disponivel = False
+        
+except Exception as e:
+    print(f"Erro ao processar período {mes_ano}: {e}")
+    pdf_disponivel = False
 
-print(f"Download finalizado. Verificando pasta final...")
 
 # Processar o arquivo baixado
 downloads_path = "/tmp/downloads"  # Mesma pasta configurada no Firefox
-local_files_path = "/python-docker/files"
 pdf_info = None
 
+# Verificar se o PDF está disponível antes de tentar processar
+if not pdf_disponivel:
+    print(f"PDF para o período {mes_ano} não está disponível")
+    pdf_info = {
+        'status': 'PDF não disponível',
+        'periodo_solicitado': mes_ano,
+        'disponivel': False
+    }
+else:
+    print("PDF disponível, processando download...")
+
 try:
-    print("Arquivos na pasta downloads:", os.listdir(downloads_path))
-    
-    # DEBUG: Verificar outras pastas onde o arquivo pode ter sido salvo
-    possible_paths = [
-        "/tmp/downloads",
-        "/tmp", 
-        "/home/seluser/Downloads",
-        "/home/seluser",
-        "/downloads",
-        "/usr/downloads"
-    ]
-    
-    print("=== DEBUGANDO POSSÍVEIS LOCAIS DE DOWNLOAD ===")
-    for path in possible_paths:
-        try:
-            if os.path.exists(path):
-                files = os.listdir(path)
-                pdf_files_in_path = [f for f in files if f.endswith('.pdf')]
-                print(f"{path}: {len(files)} arquivos total, {len(pdf_files_in_path)} PDFs")
-                if pdf_files_in_path:
-                    print(f"  PDFs encontrados: {pdf_files_in_path}")
-            else:
-                print(f"{path}: pasta não existe")
-        except Exception as e:
-            print(f"{path}: erro ao acessar - {e}")
-    
-    # Encontrar o PDF mais recente na pasta configurada
-    pdf_files = [f for f in os.listdir(downloads_path) if f.endswith('.pdf')]
-    if pdf_files:
-        latest_pdf = max(pdf_files, key=lambda x: os.path.getctime(os.path.join(downloads_path, x)))
-        
-        # Criar nome personalizado: ano_mes-uc-nome-EnergiaSolar.pdf
-        # Limpar nome (remover caracteres especiais)
+    if pdf_disponivel:  # Só tentar baixar se o PDF estiver disponível
+        latest_pdf = None
+        pdf_files = [f for f in os.listdir(downloads_path) if f.endswith('.pdf')]
+        if pdf_files:
+            path_latest = max(pdf_files, key=lambda x: os.path.getctime(os.path.join(downloads_path, x)))
+            latest_pdf = path_latest
+            print(f"PDF encontrado em {downloads_path}: {latest_pdf}")
+        else:
+            print(f"Nenhum PDF encontrado em {downloads_path}. Arquivos presentes: {os.listdir(downloads_path)}")
+    else:
+        latest_pdf = None  # Não há PDF para processar
+
+    if latest_pdf:  # Só processar se encontrou um PDF
         nome_limpo = nome.replace(" ", "").replace(".", "").replace("/", "").replace("-", "") if nome else "SemNome"
-        unique_filename = f"{ano_mes}-{uc}-{nome_limpo}-EnergiaSolar.pdf"
+        unique_filename = f"{mes_ano.replace('/', '-')}-{uc}-{nome_limpo}-EnergiaSolar.pdf"
         
         # Ler PDF e converter para base64 (melhor para API/Bubble)
         import base64
@@ -168,15 +212,22 @@ try:
             'size': os.path.getsize(source_path),
             'mime_type': 'application/pdf',
             'uc': uc,
-            'ano_mes': ano_mes,
+            'mes_ano': mes_ano,
             'nome': nome,
             'download_time': str(int(time.time()))
         }
         
-        print(f"PDF salvo como: {unique_filename}")
-        print(f"Informações do PDF: {pdf_info}")
+        print(f"PDF processado com sucesso: {unique_filename}")
+        
+        # Apagar o arquivo original da pasta temporária
+        try:
+            os.remove(source_path)
+            print(f"Arquivo temporário removido: {source_path}")
+        except Exception as delete_error:
+            print(f"Erro ao remover arquivo temporário: {delete_error}")
     else:
-        print("Nenhum PDF encontrado nos downloads")
+        print("Nenhum PDF foi encontrado para processar")
+
         
 except Exception as e:
     print(f"Erro ao processar downloads: {e}")
@@ -185,6 +236,9 @@ driver.quit()
 
 # Retornar informações do PDF para o Flask
 if pdf_info:
-    print(f"SUCESSO: PDF baixado - {pdf_info['filename']}")
+    if pdf_info.get('disponivel') == False:
+        print(f"AVISO: PDF não disponível para o período {mes_ano}")
+    else:
+        print(f"SUCESSO: PDF baixado - {pdf_info['filename']}")
 else:
     print("FALHA: Nenhum PDF foi baixado")

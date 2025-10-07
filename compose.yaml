@@ -4,12 +4,15 @@ services:
     build: .
     volumes:
       - ./files:/python-docker/files
+      - ./downloads:/tmp/downloads
+      - ./downloads:/downloads
     ports:
       - "8000:5000"
   selenium:
     image: selenium/standalone-firefox:latest
     volumes:
       - ./downloads:/home/seluser/Downloads
+      - ./downloads:/tmp/downloads
     ports:
       - "4444:4444"
       - "7900:7900"

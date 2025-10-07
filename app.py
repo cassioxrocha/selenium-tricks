@@ -46,107 +46,14 @@ def execute_and_capture(fileName, **kwargs):
     
     return result
 
-@app.route('/tasks')
-def tasks():
-    task_status = {}
-    
-    for future_id, future in futures.items():
-        if future.done():
-            try:
-                result = future.result()
-                task_status[future_id] = {
-                    'status': 'completed',
-                    'result_preview': str(result)[:200] + '...' if len(str(result)) > 200 else str(result)
-                }
-            except Exception as e:
-                task_status[future_id] = {
-                    'status': 'failed',
-                    'error': str(e)
-                }
-        else:
-            task_status[future_id] = {
-                'status': 'running' if future.running() else 'pending'
-            }
-    
-    return jsonify({
-        'total_tasks': len(futures),
-        'tasks': task_status
-    })
-    
-
-
-@app.route('/task-status/<future_id>', methods=['GET'])
-def task_status(future_id):
-    future = futures.get(future_id)
-    if future is None:
-        return jsonify({'success': False, 'error': 'Invalid task ID'}), 404
-    
-    if future.done():
-        try:
-            result = future.result()
-            
-            # Resposta otimizada para Bubble
-            response = {
-                'success': True,
-                'status': 'completed',
-                'message': result.get('message', 'Task completed')
-            }
-            
-            # Se tem PDF, incluir os dados
-            if 'pdf_info' in result:
-                pdf_info = result['pdf_info']
-                response.update({
-                    'pdf': {
-                        'filename': pdf_info['filename'],
-                        'data': pdf_info['base64_data'],
-                        'size_bytes': pdf_info['size'],
-                        'mime_type': pdf_info['mime_type'],
-                        'uc': pdf_info['uc'],
-                        'ano_mes': pdf_info['ano_mes'],
-                        'nome': pdf_info['nome'],
-                        'timestamp': pdf_info['download_time']
-                    }
-                })
-            
-            return jsonify(response)
-            
-        except Exception as e:
-            return jsonify({
-                'success': False,
-                'status': 'failed',
-                'error': str(e)
-            }), 500
-    else:
-        status = 'running' if future.running() else 'pending'
-        return jsonify({
-            'success': True,
-            'status': status,
-            'message': f'Task is {status}'
-        })
-
-@app.route('/busca_fatura', methods=['POST'])
-def seleniumAsync():
-    data = request.json
-    uc = data.get('uc')
-    ano_mes = data.get('ano_mes')
-    documento = data.get('documento')
-    nome = data.get('nome')
-    data_nascimento = data.get('data_nascimento')
-    future_id = str(uuid.uuid4())
-    future = executor.submit(execute_and_capture, 'scrappy2.py', 
-                           uc=uc, ano_mes=ano_mes, documento=documento, 
-                           nome=nome, data_nascimento=data_nascimento)
-    futures[future_id] = future
-
-    return jsonify({'status': 'Task started!','future_id': future_id }), 202
-
+   
 @app.route('/busca_fatura_sync', methods=['POST'])
 def busca_fatura_sync():
     """Endpoint síncrono otimizado para Bubble - retorna PDF imediatamente"""
     try:
         data = request.json
         uc = data.get('uc')
-        ano_mes = data.get('ano_mes') 
+        mes_ano = data.get('mes_ano')  # Formato: "AGO/2025"
         documento = data.get('documento')
         nome = data.get('nome')
         data_nascimento = data.get('data_nascimento')
@@ -160,25 +67,47 @@ def busca_fatura_sync():
         
         # Executar diretamente (síncrono)
         result = execute_and_capture('scrappy2.py', 
-                                   uc=uc, ano_mes=ano_mes, documento=documento, 
+                                   uc=uc, mes_ano=mes_ano, documento=documento, 
                                    nome=nome, data_nascimento=data_nascimento)
         
         if result.get('pdf_info'):
             pdf_info = result['pdf_info']
-            return jsonify({
-                'success': True,
-                'message': 'PDF downloaded successfully',
-                'pdf': {
-                    'filename': pdf_info['filename'],
-                    'data': pdf_info['base64_data'],
-                    'size_bytes': pdf_info['size'],
-                    'mime_type': pdf_info['mime_type'],
-                    'uc': pdf_info['uc'],
-                    'ano_mes': pdf_info['ano_mes'],
-                    'nome': pdf_info['nome'],
-                    'timestamp': pdf_info['download_time']
-                }
-            })
+            
+            # Verificar se o PDF não está disponível
+            if pdf_info.get('disponivel') == False:
+                return jsonify({
+                    'success': False,
+                    'message': 'PDF não disponível para o período solicitado',
+                    'error': 'PDF_NOT_AVAILABLE',
+                    'periodo_solicitado': pdf_info.get('periodo_solicitado'),
+                    'status': pdf_info.get('status')
+                }), 404
+            
+            # Verificar se é um PDF válido (tem filename)
+            if pdf_info.get('filename'):
+                # PDF foi baixado com sucesso
+                return jsonify({
+                    'success': True,
+                    'message': 'PDF downloaded successfully',
+                    'pdf': {
+                        'filename': pdf_info.get('filename'),
+                        'data': pdf_info.get('base64_data'),
+                        'size_bytes': pdf_info.get('size'),
+                        'mime_type': pdf_info.get('mime_type'),
+                        'uc': pdf_info.get('uc'),
+                        'mes_ano': pdf_info.get('mes_ano'),
+                        'nome': pdf_info.get('nome'),
+                        'timestamp': pdf_info.get('download_time')
+                    }
+                })
+            else:
+                # PDF não foi processado corretamente - mostrar saída completa para debug
+                return jsonify({
+                    'success': False,
+                    'error': 'PDF processing failed',
+                    'details': result.get('output', ''),
+                    'pdf_info_content': pdf_info
+                }), 500
         else:
             return jsonify({
                 'success': False,
@@ -192,9 +121,7 @@ def busca_fatura_sync():
             'error': f'Internal error: {str(e)}'
         }), 500
 
-@app.route('/')
-def hello():
-    return 'Hello World!'
+
 
 
 if __name__ == '__main__':
