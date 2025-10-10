@@ -299,35 +299,56 @@ try:
 except Exception as e:
     print(f"Erro ao fazer screenshot/obter info da página: {e}")
 
-if data_nascimento:
-    print("Preenchendo data de nascimento...")
-    data_field = wait.until(EC.element_to_be_clickable((By.ID, "WEBDOOR_headercorporativogo_txtData")))
-    data_field.clear()
-    data_field.send_keys(data_nascimento)
-    time.sleep(5)
-    driver.save_screenshot("debug_05_data_nascimento.png")
+# Detectar se é CPF ou CNPJ
+documento_limpo = ''.join(filter(str.isdigit, documento))
+eh_cpf = len(documento_limpo) == 11
+eh_cnpj = len(documento_limpo) == 14
+
+print(f"Documento: {documento_limpo} ({'CPF' if eh_cpf else 'CNPJ' if eh_cnpj else 'INVÁLIDO'})")
+
+# Só preencher data de nascimento se for CPF
+if eh_cpf and data_nascimento:
+    try:
+        print("Documento é CPF - Preenchendo data de nascimento...")
+        data_field = wait.until(EC.element_to_be_clickable((By.ID, "WEBDOOR_headercorporativogo_txtData")))
+        data_field.clear()
+        data_field.send_keys(data_nascimento)
+        time.sleep(5)
+        driver.save_screenshot("debug_05_data_nascimento.png")
+        
+        print("Clicando em validar...")
+        validar_button = wait.until(EC.element_to_be_clickable((By.ID, "WEBDOOR_headercorporativogo_btnValidar")))
+        validar_button.click()
+        time.sleep(3)
+        
+        # Verificar alert após validação
+        success, alert_text = check_and_handle_alert(driver, "após validar data")
+        if not success:
+            print(f"ERRO NA VALIDAÇÃO: {alert_text}")
+            driver.save_screenshot("debug_06_erro_validacao.png")
+            driver.quit()
+            pdf_info = {
+                'status': 'Erro na validação',
+                'erro': alert_text,
+                'disponivel': False,
+                'motivo': 'Data de nascimento incorreta ou dados inválidos'
+            }
+            exit()
+        
+        time.sleep(5)
+        driver.save_screenshot("debug_06_apos_validar.png")
     
-    print("Clicando em validar...")
-    validar_button = wait.until(EC.element_to_be_clickable((By.ID, "WEBDOOR_headercorporativogo_btnValidar")))
-    validar_button.click()
-    time.sleep(3)
+    except Exception as e:
+        print(f"Erro ao preencher data de nascimento: {e}")
+        driver.save_screenshot("debug_06_erro_data.png")
+        
+elif eh_cnpj:
+    print("Documento é CNPJ - Pulando preenchimento de data de nascimento")
+    driver.save_screenshot("debug_05_cnpj_sem_data.png")
     
-    # Verificar alert após validação
-    success, alert_text = check_and_handle_alert(driver, "após validar data")
-    if not success:
-        print(f"ERRO NA VALIDAÇÃO: {alert_text}")
-        driver.save_screenshot("debug_06_erro_validacao.png")
-        driver.quit()
-        pdf_info = {
-            'status': 'Erro na validação',
-            'erro': alert_text,
-            'disponivel': False,
-            'motivo': 'Data de nascimento incorreta ou dados inválidos'
-        }
-        exit()
-    
-    time.sleep(5)
-    driver.save_screenshot("debug_06_apos_validar.png")
+else:
+    print("Tipo de documento não identificado ou data não fornecida")
+    driver.save_screenshot("debug_05_documento_indefinido.png")
 
 print("Procurando botão modal...")
 try:
