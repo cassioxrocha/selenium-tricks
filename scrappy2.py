@@ -237,6 +237,21 @@ try:
         continue_button.click()
         time.sleep(3)
         print("Botão continuar clicado com sucesso")
+        
+        # Verificar se apareceu algum alert após clicar
+        success, alert_text = check_and_handle_alert(driver, "após clicar continuar")
+        if not success:
+            print(f"ERRO DE LOGIN: {alert_text}")
+            driver.save_screenshot("debug_04_erro_login.png")
+            driver.quit()
+            # Retornar erro específico para o Flask
+            pdf_info = {
+                'status': 'Erro de login',
+                'erro': alert_text,
+                'disponivel': False,
+                'motivo': 'Dados de login incorretos ou sistema indisponível'
+            }
+            exit()
     else:
         print("ERRO: Botão continuar não encontrado!")
         driver.save_screenshot("debug_04_botao_nao_encontrado.png")
@@ -254,21 +269,6 @@ except Exception as e:
     print(f"ERRO ao procurar/clicar botão continuar: {e}")
     driver.save_screenshot("debug_04_erro_continuar.png")
     driver.quit()
-    exit()
-
-# Verificar se apareceu algum alert após clicar
-success, alert_text = check_and_handle_alert(driver, "após clicar continuar")
-if not success:
-    print(f"ERRO DE LOGIN: {alert_text}")
-    driver.save_screenshot("debug_04_erro_login.png")
-    driver.quit()
-    # Retornar erro específico para o Flask
-    pdf_info = {
-        'status': 'Erro de login',
-        'erro': alert_text,
-        'disponivel': False,
-        'motivo': 'Dados de login incorretos ou sistema indisponível'
-    }
     exit()
 
 time.sleep(5)
