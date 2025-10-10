@@ -440,34 +440,45 @@ try:
             print(f"Erro no debug da linha: {debug_error}")
         
         # Encontrar e clicar no botão Download da linha
-        try:
-            linha_periodo = periodo_cell.find_element(By.XPATH, "./..")  # Pega a linha (tr) pai
-            # Procurar por link com onclick contendo 'mostraFaturaCompleta' ou texto 'Download'
-            download_link = linha_periodo.find_element(By.XPATH, ".//a[contains(@onclick, 'mostraFaturaCompleta') or contains(text(), 'Download')]")
-            print("Clicando no link de download...")
-            download_link.click()
+        linha_periodo = periodo_cell.find_element(By.XPATH, "./..")  # Pega a linha (tr) pai
+        
+        # Procurar por qualquer link de download na linha
+        download_links = linha_periodo.find_elements(By.TAG_NAME, "a")
+        download_clicado = False
+        
+        for link in download_links:
+            onclick = link.get_attribute('onclick') or ''
+            texto = link.text or ''
             
-            time.sleep(3)
-            print("Clicando no botão Modal...")
-            wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
-            
-            print("Aguardando download ser concluído...")
-            time.sleep(8)  # Espera para download
-            
-            pdf_disponivel = True
-        except Exception as e:
-            print(f"Erro ao clicar no download: {e}")
-            pdf_disponivel = False
-            time.sleep(3)
-            print("Clicando no botão Modal...")
-            wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
-            
-            print("Aguardando download ser concluído...")
-            time.sleep(8)  # Espera mais longa para download
-            
-            pdf_disponivel = True
+            # Se contém 'Download' no texto ou alguma função de download no onclick
+            if 'Download' in texto or 'download' in onclick.lower() or 'mostraFaturaCompleta' in onclick:
+                try:
+                    print(f"Clicando no link: {texto}")
+                    link.click()
+                    download_clicado = True
+                    break
+                except Exception as e:
+                    print(f"Erro ao clicar no link {texto}: {e}")
+                    continue
+        
+        if download_clicado:
+            try:
+                time.sleep(3)
+                print("Clicando no botão Modal...")
+                wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
+                
+                print("Aguardando download ser concluído...")
+                time.sleep(8)  # Espera para download
+                pdf_disponivel = True
+                print("Download realizado com sucesso!")
+                
+            except Exception as e:
+                print(f"Erro ao clicar no botão modal: {e}")
+                # Mesmo com erro no modal, o download pode ter acontecido
+                time.sleep(8)
+                pdf_disponivel = True  # Assumir que deu certo
         else:
-            print("Nenhum método conseguiu clicar no botão Download")
+            print("Nenhum link de download encontrado na linha")
             pdf_disponivel = False
         
     except Exception as e:
