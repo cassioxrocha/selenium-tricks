@@ -271,10 +271,34 @@ except Exception as e:
     driver.quit()
     exit()
 
+# Aguardar e verificar resultado do clique em continuar
 time.sleep(5)
-driver.save_screenshot("debug_04_apos_continuar.png")
-print(f"URL após continuar: {driver.current_url}")
-print(f"Título após continuar: {driver.title}")
+
+# Verificar se há alert ANTES de tentar screenshot
+success, alert_text = check_and_handle_alert(driver, "verificação final após continuar")
+if not success:
+    print(f"ERRO DE LOGIN FINAL: {alert_text}")
+    try:
+        driver.save_screenshot("debug_04_erro_login_final.png")
+    except:
+        print("Não foi possível salvar screenshot do erro")
+    driver.quit()
+    # Retornar erro específico para o Flask
+    pdf_info = {
+        'status': 'Erro de login',
+        'erro': alert_text,
+        'disponivel': False,
+        'motivo': 'Dados de login incorretos ou sistema indisponível'
+    }
+    exit()
+
+try:
+    driver.save_screenshot("debug_04_apos_continuar.png")
+    print(f"URL após continuar: {driver.current_url}")
+    print(f"Título após continuar: {driver.title}")
+except Exception as e:
+    print(f"Erro ao fazer screenshot/obter info da página: {e}")
+
 if data_nascimento:
     print("Preenchendo data de nascimento...")
     data_field = wait.until(EC.element_to_be_clickable((By.ID, "WEBDOOR_headercorporativogo_txtData")))
