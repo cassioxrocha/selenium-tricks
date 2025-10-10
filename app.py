@@ -73,6 +73,28 @@ def busca_fatura_sync():
         if result.get('pdf_info'):
             pdf_info = result['pdf_info']
             
+            # Verificar se há erro de login
+            if pdf_info.get('status') == 'Erro de login':
+                return jsonify({
+                    'success': False,
+                    'message': 'Erro de login detectado',
+                    'error': 'LOGIN_ERROR', 
+                    'erro_details': pdf_info.get('erro'),
+                    'motivo': pdf_info.get('motivo'),
+                    'status': pdf_info.get('status')
+                }), 400
+            
+            # Verificar se há erro na validação
+            if pdf_info.get('status') == 'Erro na validação':
+                return jsonify({
+                    'success': False,
+                    'message': 'Erro na validação dos dados',
+                    'error': 'VALIDATION_ERROR',
+                    'erro_details': pdf_info.get('erro'),
+                    'motivo': pdf_info.get('motivo'),
+                    'status': pdf_info.get('status')
+                }), 400
+            
             # Verificar se o PDF não está disponível
             if pdf_info.get('disponivel') == False:
                 return jsonify({
