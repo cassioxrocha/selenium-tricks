@@ -472,11 +472,62 @@ try:
             # Se contém 'Download' no texto ou alguma função de download no onclick
             if 'Download' in texto or 'download' in onclick.lower() or 'mostraFaturaCompleta' in onclick:
                 try:
-                    print(f"*** CLICANDO NO LINK: {texto} ***")
+                    print(f"*** TENTANDO BAIXAR PDF: {texto} ***")
                     
-                    # Tentar scroll até o elemento
-                    driver.execute_script("arguments[0].scrollIntoView();", link)
-                    time.sleep(1)
+                    # Tentar extrair URL do PDF do onclick
+                    pdf_url = None
+                    if 'mostraFaturaCompleta' in onclick:
+                        # Extrair parâmetros do onclick
+                        import re
+                        match = re.search(r"mostraFaturaCompleta\('([^']+)',\s*'([^']+)',\s*'([^']+)'", onclick)
+                        if match:
+                            param1, param2, param3 = match.groups()
+                            pdf_url = f"https://goias.equatorialenergia.com.br/AgenciaGO/Servicos/aberto/mostrarFaturaCompleta.jsp?param1={param1}&param2={param2}&param3={param3}"
+                            print(f"URL do PDF extraída: {pdf_url}")
+                    
+                    # Se conseguimos extrair a URL, baixar diretamente
+                    if pdf_url:
+                        try:
+                            print("Tentando download direto via requests...")
+                            import requests
+                            
+                            # Usar cookies do navegador
+                            cookies = driver.get_cookies()
+                            cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+                            
+                            headers = {
+                                'User-Agent': driver.execute_script("return navigator.userAgent;"),
+                                'Referer': driver.current_url
+                            }
+                            
+                            response = requests.get(pdf_url, cookies=cookie_dict, headers=headers, timeout=30)
+                            
+                            if response.status_code == 200 and 'application/pdf' in response.headers.get('content-type', ''):
+                                # Salvar PDF
+                                pdf_filename = f"fatura_{periodo_procurado.replace('/', '_')}.pdf"
+                                pdf_path = os.path.join(download_dir, pdf_filename)
+                                
+                                with open(pdf_path, 'wb') as f:
+                                    f.write(response.content)
+                                
+                                print(f"✅ PDF baixado com sucesso: {pdf_path}")
+                                pdf_disponivel = True
+                                download_clicado = True
+                                break
+                            else:
+                                print(f"❌ Resposta inválida: {response.status_code}, Content-Type: {response.headers.get('content-type')}")
+                        
+                        except Exception as download_error:
+                            print(f"❌ Erro no download direto: {download_error}")
+                            # Fallback para método original
+                            pass
+                    
+                    # Se o download direto falhou, tentar método original
+                    if not download_clicado:
+                        print("Tentando método original (clique + modal)...")
+                        # Tentar scroll até o elemento
+                        driver.execute_script("arguments[0].scrollIntoView();", link)
+                        time.sleep(1)
                     
                     # Tentar clique normal
                     link.click()
