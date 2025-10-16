@@ -269,7 +269,8 @@ try:
                 'status': 'Erro de login',
                 'erro': alert_text,
                 'disponivel': False,
-                'motivo': 'Dados de login incorretos ou sistema indisponível'
+                'motivo': 'Dados de login incorretos ou sistema indisponível',
+                'filename': None
             }
             exit()
     else:
@@ -308,7 +309,8 @@ if not success:
         'status': 'Erro de login',
         'erro': alert_text,
         'disponivel': False,
-        'motivo': 'Dados de login incorretos ou sistema indisponível'
+        'motivo': 'Dados de login incorretos ou sistema indisponível',
+        'filename': None
     }
     exit()
 
@@ -346,7 +348,8 @@ if eh_cpf and data_nascimento:
                 'status': 'Erro na validação',
                 'erro': alert_text,
                 'disponivel': False,
-                'motivo': 'Data de nascimento incorreta ou dados inválidos'
+                'motivo': 'Data de nascimento incorreta ou dados inválidos',
+                'filename': None
             }
             exit()
         
@@ -627,7 +630,8 @@ if not pdf_disponivel:
     pdf_info = {
         'status': 'PDF não disponível',
         'periodo_solicitado': mes_ano,
-        'disponivel': False
+        'disponivel': False,
+        'filename': None
     }
 else:
     print(f"PDF para o período {mes_ano} ESTÁ disponível - processando...")

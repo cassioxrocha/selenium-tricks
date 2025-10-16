@@ -40,7 +40,8 @@ def execute_and_capture(fileName, **kwargs):
     
     if pdf_info:
         result['pdf_info'] = pdf_info
-        result['message'] = f"PDF baixado: {pdf_info['filename']}"
+        filename = pdf_info.get('filename', 'arquivo não identificado')
+        result['message'] = f"PDF baixado: {filename}"
     else:
         result['message'] = "Script executado, mas nenhum PDF foi encontrado"
     
