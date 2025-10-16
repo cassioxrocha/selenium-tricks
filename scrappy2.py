@@ -46,12 +46,26 @@ options.set_preference("browser.download.folderList", 2)
 options.set_preference("browser.download.dir", download_dir)
 options.set_preference("browser.download.manager.showWhenStarting", False) 
 options.set_preference("browser.download.useDownloadDir", True)
-options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/pdf,application/x-pdf")
+options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/pdf,application/x-pdf,application/octet-stream")
 options.set_preference("browser.download.manager.alertOnEXEOpen", False)
 options.set_preference("browser.download.manager.focusWhenStarting", False)
 options.set_preference("browser.download.manager.useWindow", False)
 options.set_preference("browser.download.manager.showAlertOnComplete", False)
 options.set_preference("browser.download.manager.closeWhenDone", True)
+
+# Configurações adicionais para melhorar a confiabilidade do download
+options.set_preference("browser.download.improvements_to_download_panel", False)
+options.set_preference("browser.download.always_ask_before_handling_new_types", False)
+options.set_preference("browser.download.panel.shown", False)
+options.set_preference("browser.download.start_downloads_in_tmp_dir", False)
+options.set_preference("browser.download.alwaysOpenPanel", False)
+options.set_preference("security.fileuri.strict_origin_policy", False)
+options.set_preference("network.http.phishy-userpass-length", 255)
+options.set_preference("network.automatic-ntlm-auth.trusted-uris", "*")
+
+# Configurações de timeout
+options.set_preference("network.http.connection-timeout", 60)
+options.set_preference("network.http.response.timeout", 60)
 
 print(f"Firefox configurado para baixar em: {download_dir}")
 
@@ -492,9 +506,36 @@ try:
                 wait.until(EC.element_to_be_clickable((By.ID, "CONTENT_btnModal"))).click()
                 
                 print("Aguardando download ser concluído...")
-                time.sleep(8)  # Espera para download
-                pdf_disponivel = True
-                print("Download realizado com sucesso!")
+                
+                # Aguardar mais tempo e verificar se o download realmente aconteceu
+                max_tentativas = 15  # 30 segundos total
+                for i in range(max_tentativas):
+                    time.sleep(2)
+                    
+                    # Verificar se há arquivos na pasta de download
+                    arquivos = [f for f in os.listdir(download_dir) if f.endswith('.pdf')]
+                    if arquivos:
+                        print(f"✅ PDF encontrado após {(i+1)*2} segundos: {arquivos}")
+                        pdf_disponivel = True
+                        break
+                    
+                    print(f"⏳ Tentativa {i+1}/{max_tentativas} - Aguardando download...")
+                
+                if not pdf_disponivel:
+                    print("❌ Timeout: Download não foi concluído após 30 segundos")
+                    # Verificar se o download aparece como falha no Firefox
+                    try:
+                        # Tentar abrir a aba de downloads do Firefox
+                        driver.execute_script("window.open('about:downloads', '_blank');")
+                        driver.switch_to.window(driver.window_handles[-1])
+                        time.sleep(3)
+                        driver.save_screenshot("debug_downloads_firefox.png")
+                        driver.close()
+                        driver.switch_to.window(driver.window_handles[0])
+                    except:
+                        pass
+                else:
+                    print("Download realizado com sucesso!")
                 
             except Exception as e:
                 print(f"Erro ao clicar no botão modal: {e}")
