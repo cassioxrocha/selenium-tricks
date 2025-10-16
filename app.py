@@ -27,11 +27,18 @@ def execute_and_capture(fileName, **kwargs):
         **kwargs  # Adiciona todos os parâmetros passados
     }
     
-    with contextlib.redirect_stdout(output):
-        exec(code, namespace)
+    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+        print(f"[FLASK] Executando {fileName} com parâmetros: {kwargs}")
+        try:
+            exec(code, namespace)
+            print(f"[FLASK] Script {fileName} executado com sucesso")
+        except Exception as e:
+            print(f"[FLASK] Erro ao executar {fileName}: {e}")
+            raise
     
     # Capturar informações do PDF se existir no namespace
     pdf_info = namespace.get('pdf_info')
+    print(f"[FLASK] pdf_info capturado: {pdf_info}")
     
     result = {
         'output': output.getvalue(),
