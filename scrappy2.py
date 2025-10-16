@@ -35,11 +35,33 @@ options.add_argument('--ignore-certificate-errors')
 
 # Configurar pasta de downloads para uma pasta existente e mapeada
 download_dir = "/tmp/downloads"
-os.makedirs(download_dir, exist_ok=True)  # Criar pasta se não existir
 
-# DEBUG: Verificar se a pasta foi criada
-print(f"Pasta de downloads criada: {download_dir}")
+# Criar pasta com permissões adequadas
+os.makedirs(download_dir, exist_ok=True, mode=0o777)
+
+# Verificar e ajustar permissões
+try:
+    import stat
+    os.chmod(download_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)  # 777
+    print(f"Permissões ajustadas para: {oct(os.stat(download_dir).st_mode)[-3:]}")
+except Exception as perm_error:
+    print(f"Erro ao ajustar permissões: {perm_error}")
+
+# DEBUG: Verificar se a pasta foi criada e suas permissões
+print(f"Pasta de downloads: {download_dir}")
 print(f"Pasta existe: {os.path.exists(download_dir)}")
+print(f"Pasta é escrita: {os.access(download_dir, os.W_OK)}")
+print(f"Pasta é lida: {os.access(download_dir, os.R_OK)}")
+
+# Limpar pasta antes de usar
+try:
+    for arquivo in os.listdir(download_dir):
+        arquivo_path = os.path.join(download_dir, arquivo)
+        if os.path.isfile(arquivo_path):
+            os.remove(arquivo_path)
+    print("Pasta de downloads limpa")
+except Exception as clean_error:
+    print(f"Erro ao limpar pasta: {clean_error}")
 
 # Configurações mais robustas do Firefox para download
 options.set_preference("browser.download.folderList", 2)
@@ -66,6 +88,18 @@ options.set_preference("network.automatic-ntlm-auth.trusted-uris", "*")
 # Configurações de timeout
 options.set_preference("network.http.connection-timeout", 60)
 options.set_preference("network.http.response.timeout", 60)
+
+# Configurações específicas para resolver problemas de download
+options.set_preference("browser.download.forbid_open_with", False)
+options.set_preference("browser.download.manager.retention", 0)
+options.set_preference("browser.download.skipConfirmLaunchExecutable", True)
+options.set_preference("browser.safebrowsing.downloads.enabled", False)
+options.set_preference("browser.safebrowsing.downloads.remote.enabled", False)
+options.set_preference("security.sandbox.content.level", 0)  # Desabilitar sandbox que pode impedir downloads
+
+# Forçar diretório específico
+options.set_preference("browser.download.lastDir", download_dir)
+options.set_preference("browser.download.downloadDir", download_dir)
 
 print(f"Firefox configurado para baixar em: {download_dir}")
 
