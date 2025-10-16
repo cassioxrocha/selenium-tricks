@@ -1,6 +1,9 @@
 from multiprocessing.connection import wait
 import os
 import logging
+import random
+import re
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -36,6 +39,15 @@ logger.info(f"Documento: {documento_limpo} ({'CPF' if eh_cpf else 'CNPJ' if eh_c
 options = Options()
 options.add_argument('--ignore-ssl-errors=yes')
 options.add_argument('--ignore-certificate-errors')
+
+# Configurações anti-detecção
+options.add_argument('--disable-blink-features=AutomationControlled')
+options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-web-security')
+options.add_argument('--allow-running-insecure-content')
+options.add_argument('--disable-features=VizDisplayCompositor')
 
 # Configurar pasta de downloads para uma pasta existente e mapeada
 download_dir = "/tmp/downloads"
@@ -105,6 +117,16 @@ options.set_preference("security.sandbox.content.level", 0)  # Desabilitar sandb
 options.set_preference("browser.download.lastDir", download_dir)
 options.set_preference("browser.download.downloadDir", download_dir)
 
+# Configurações anti-detecção mais avançadas
+options.set_preference("dom.webdriver.enabled", False)
+options.set_preference("useAutomationExtension", False)
+options.set_preference("general.useragent.override", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+options.set_preference("media.navigator.enabled", False)
+options.set_preference("media.peerconnection.enabled", False)
+options.set_preference("network.http.sendOriginHeader", 0)
+options.set_preference("privacy.trackingprotection.enabled", False)
+options.set_preference("dom.battery.enabled", False)
+
 logger.info(f"Firefox configurado para baixar em: {download_dir}")
 
 def check_and_handle_alert(driver, action_description=""):
@@ -130,6 +152,28 @@ def check_and_handle_alert(driver, action_description=""):
 try:
     driver = webdriver.Remote("http://selenium:4444/wd/hub", options=options)
     logger.info("Conexão com Selenium Grid estabelecida com sucesso")
+    
+    # Script anti-detecção: remover propriedades que indicam automação
+    stealth_script = """
+    Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+    });
+    
+    Object.defineProperty(navigator, 'languages', {
+        get: () => ['pt-BR', 'pt', 'en-US', 'en'],
+    });
+    
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+    });
+    
+    window.chrome = {
+        runtime: {},
+    };
+    """
+    driver.execute_script(stealth_script)
+    logger.info("Scripts anti-detecção aplicados com sucesso")
+    
 except Exception as e:
     logger.error(f"ERRO: Falha ao conectar com Selenium Grid: {e}")
     exit()
@@ -140,7 +184,11 @@ wait = WebDriverWait(driver, 20)
 try:
     logger.info("Acessando site da Equatorial...")
     driver.get("https://goias.equatorialenergia.com.br/LoginGO.aspx")
-    time.sleep(5)
+    
+    # Delay mais humano e aplicar script stealth novamente na página
+    time.sleep(random.uniform(3, 7))  # Delay aleatório
+    driver.execute_script(stealth_script)
+    
     logger.info(f"Página carregada: {driver.title}")
     logger.info(f"URL atual: {driver.current_url}")
     
