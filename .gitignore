@@ -1,2 +1,33 @@
 # General
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Screenshots de debug
+debug_*.png
+tabela_encontrada_*.png
+
+# Arquivos temporários
+*.tmp
+*.temp

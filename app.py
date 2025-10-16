@@ -58,6 +58,12 @@ def busca_fatura_sync():
         nome = data.get('nome')
         data_nascimento = data.get('data_nascimento')
         
+        # DEBUG: Log da requisição
+        print(f"=== NOVA REQUISIÇÃO ===")
+        print(f"User-Agent: {request.headers.get('User-Agent', 'N/A')}")
+        print(f"Content-Type: {request.headers.get('Content-Type', 'N/A')}")
+        print(f"Dados: UC={uc}, mes_ano={mes_ano}, documento={documento}, nome={nome}")
+        
         # Validação básica
         if not uc or not documento:
             return jsonify({
@@ -124,17 +130,32 @@ def busca_fatura_sync():
                 })
             else:
                 # PDF não foi processado corretamente - mostrar saída completa para debug
+                print(f"=== PDF PROCESSING FAILED ===")
+                print(f"pdf_info keys: {list(pdf_info.keys()) if pdf_info else 'None'}")
+                print(f"pdf_info content: {pdf_info}")
+                print(f"Script output (last 500 chars): {result.get('output', '')[-500:]}")
+                
                 return jsonify({
                     'success': False,
-                    'error': 'PDF processing failed',
-                    'details': result.get('output', ''),
-                    'pdf_info_content': pdf_info
+                    'error': 'PDF processing failed - no filename',
+                    'debug_info': {
+                        'pdf_info_keys': list(pdf_info.keys()) if pdf_info else [],
+                        'pdf_info': pdf_info,
+                        'output_snippet': result.get('output', '')[-500:]
+                    }
                 }), 500
         else:
+            print(f"=== NO PDF_INFO ===")
+            print(f"result keys: {list(result.keys()) if result else 'None'}")
+            print(f"Script output (last 500 chars): {result.get('output', '')[-500:]}")
+            
             return jsonify({
                 'success': False,
-                'error': 'Failed to download PDF',
-                'details': result.get('output', '')
+                'error': 'No PDF info returned from script',
+                'debug_info': {
+                    'result_keys': list(result.keys()) if result else [],
+                    'output_snippet': result.get('output', '')[-500:]
+                }
             }), 500
             
     except Exception as e:

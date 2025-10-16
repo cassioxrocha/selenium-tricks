@@ -34,4 +34,5 @@ Selenium Grid UI: http://localhost:4444/ui/#
 ### UI
 http://localhost:4444/ui/#
 ### Grid
-http://localhost:7900/?autoconnect=1&resize=scale&password=secret    
+
+http://216.238.107.151:7900

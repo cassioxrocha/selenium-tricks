@@ -23,6 +23,12 @@ if 'data_nascimento' not in locals():
 
 print(f"Parâmetros recebidos: UC={uc}, Mês/Ano={mes_ano}, Documento={documento}, Nome={nome}, Data de Nascimento={data_nascimento}")
 
+# Detectar se é CPF ou CNPJ
+documento_limpo = ''.join(filter(str.isdigit, documento))
+eh_cpf = len(documento_limpo) == 11
+eh_cnpj = len(documento_limpo) == 14
+
+print(f"Documento: {documento_limpo} ({'CPF' if eh_cpf else 'CNPJ' if eh_cnpj else 'INVÁLIDO'})")
 options = Options()
 options.add_argument('--ignore-ssl-errors=yes')
 options.add_argument('--ignore-certificate-errors')
@@ -187,7 +193,7 @@ try:
     if doc_field:
         print("Preenchendo documento...")
         doc_field.clear()
-        doc_field.send_keys(documento)
+        doc_field.send_keys(documento_limpo)
         time.sleep(5)
         driver.save_screenshot("debug_03_documento_preenchido.png")
         print("Documento preenchido com sucesso")
@@ -299,12 +305,7 @@ try:
 except Exception as e:
     print(f"Erro ao fazer screenshot/obter info da página: {e}")
 
-# Detectar se é CPF ou CNPJ
-documento_limpo = ''.join(filter(str.isdigit, documento))
-eh_cpf = len(documento_limpo) == 11
-eh_cnpj = len(documento_limpo) == 14
 
-print(f"Documento: {documento_limpo} ({'CPF' if eh_cpf else 'CNPJ' if eh_cnpj else 'INVÁLIDO'})")
 
 # Só preencher data de nascimento se for CPF
 if eh_cpf and data_nascimento:
@@ -446,20 +447,43 @@ try:
         download_links = linha_periodo.find_elements(By.TAG_NAME, "a")
         download_clicado = False
         
-        for link in download_links:
+        print(f"=== TENTANDO CLICAR NOS LINKS ===")
+        for i, link in enumerate(download_links):
             onclick = link.get_attribute('onclick') or ''
             texto = link.text or ''
+            href = link.get_attribute('href') or ''
+            
+            print(f"Link {i+1}: texto='{texto}', onclick='{onclick[:100]}...', href='{href[:50]}...'")
             
             # Se contém 'Download' no texto ou alguma função de download no onclick
             if 'Download' in texto or 'download' in onclick.lower() or 'mostraFaturaCompleta' in onclick:
                 try:
-                    print(f"Clicando no link: {texto}")
+                    print(f"*** CLICANDO NO LINK: {texto} ***")
+                    
+                    # Tentar scroll até o elemento
+                    driver.execute_script("arguments[0].scrollIntoView();", link)
+                    time.sleep(1)
+                    
+                    # Tentar clique normal
                     link.click()
+                    print(f"✅ Clique normal funcionou")
                     download_clicado = True
                     break
+                    
                 except Exception as e:
-                    print(f"Erro ao clicar no link {texto}: {e}")
-                    continue
+                    print(f"❌ Erro no clique normal: {e}")
+                    
+                    # Tentar JavaScript click
+                    try:
+                        driver.execute_script("arguments[0].click();", link)
+                        print(f"✅ JavaScript click funcionou")
+                        download_clicado = True
+                        break
+                    except Exception as e2:
+                        print(f"❌ Erro no JavaScript click: {e2}")
+                        continue
+        
+        print(f"=== RESULTADO DO CLIQUE: {'SUCESSO' if download_clicado else 'FALHA'} ===")
         
         if download_clicado:
             try:
@@ -494,16 +518,27 @@ except Exception as e:
 downloads_path = "/tmp/downloads"  # Mesma pasta configurada no Firefox
 pdf_info = None
 
+print(f"=== PROCESSANDO ARQUIVOS BAIXADOS ===")
+print(f"pdf_disponivel = {pdf_disponivel}")
+
+# Listar arquivos na pasta antes de processar
+try:
+    files_before = os.listdir(downloads_path)
+    print(f"Arquivos na pasta downloads: {files_before}")
+except Exception as e:
+    print(f"Erro ao listar pasta downloads: {e}")
+    files_before = []
+
 # Verificar se o PDF está disponível antes de tentar processar
 if not pdf_disponivel:
-    print(f"PDF para o período {mes_ano} não está disponível")
+    print(f"PDF para o período {mes_ano} NÃO está disponível")
     pdf_info = {
         'status': 'PDF não disponível',
         'periodo_solicitado': mes_ano,
         'disponivel': False
     }
 else:
-    print("PDF disponível, processando download...")
+    print(f"PDF para o período {mes_ano} ESTÁ disponível - processando...")
 
 try:
     if pdf_disponivel:  # Só tentar baixar se o PDF estiver disponível
