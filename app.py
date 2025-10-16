@@ -4,8 +4,27 @@ import time
 import uuid
 import os
 import io
+import sys
 import contextlib
 import base64
+import logging
+from datetime import datetime
+
+# Configurar logging para arquivo
+log_dir = "/tmp/logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "selenium_api.log")
+
+# Configurar logger
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 futures = {}
 app = Flask(__name__)
@@ -14,12 +33,36 @@ app.config['EXECUTOR_MAX_WORKERS'] = 2  # Máximo 2 sessões simultâneas
 executor = Executor(app)
 current_Path = os.path.abspath(os.getcwd())
 
+logger.info(f"Flask API iniciada. Logs sendo gravados em: {log_file}")
+
+
+class LogCapture:
+    """Classe para capturar prints e enviá-los para o logger"""
+    def __init__(self, logger):
+        self.logger = logger
+        self.buffer = io.StringIO()
+    
+    def write(self, msg):
+        if msg.strip():  # Só loga se não for linha vazia
+            self.logger.info(f"[SCRIPT] {msg.strip()}")
+        self.buffer.write(msg)
+    
+    def flush(self):
+        pass
+    
+    def getvalue(self):
+        return self.buffer.getvalue()
 
 def execute_and_capture(fileName, **kwargs):
+    logger.info(f"=== INICIANDO EXECUÇÃO: {fileName} ===")
+    logger.info(f"Parâmetros: {kwargs}")
+    
     with open(os.path.join(current_Path,fileName), 'r') as file:
         code = file.read()
 
-    output = io.StringIO()
+    # Usar nossa classe personalizada para capturar output
+    log_capture = LogCapture(logger)
+    
     # Criando um namespace com os parâmetros disponíveis para o script
     namespace = {
         '__name__': '__main__',
@@ -27,21 +70,31 @@ def execute_and_capture(fileName, **kwargs):
         **kwargs  # Adiciona todos os parâmetros passados
     }
     
-    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-        print(f"[FLASK] Executando {fileName} com parâmetros: {kwargs}")
-        try:
-            exec(code, namespace)
-            print(f"[FLASK] Script {fileName} executado com sucesso")
-        except Exception as e:
-            print(f"[FLASK] Erro ao executar {fileName}: {e}")
-            raise
+    try:
+        # Redirecionar stdout e stderr para nossa classe de captura
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        sys.stdout = log_capture
+        sys.stderr = log_capture
+        
+        logger.info(f"Executando script {fileName}...")
+        exec(code, namespace)
+        logger.info(f"Script {fileName} executado com sucesso")
+        
+    except Exception as e:
+        logger.error(f"Erro ao executar {fileName}: {e}")
+        raise
+    finally:
+        # Restaurar stdout e stderr originais
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
     
     # Capturar informações do PDF se existir no namespace
     pdf_info = namespace.get('pdf_info')
-    print(f"[FLASK] pdf_info capturado: {pdf_info}")
+    logger.info(f"pdf_info capturado: {pdf_info}")
     
     result = {
-        'output': output.getvalue(),
+        'output': log_capture.getvalue(),
         'success': True
     }
     
@@ -67,10 +120,12 @@ def busca_fatura_sync():
         data_nascimento = data.get('data_nascimento')
         
         # DEBUG: Log da requisição
-        print(f"=== NOVA REQUISIÇÃO ===")
-        print(f"User-Agent: {request.headers.get('User-Agent', 'N/A')}")
-        print(f"Content-Type: {request.headers.get('Content-Type', 'N/A')}")
-        print(f"Dados: UC={uc}, mes_ano={mes_ano}, documento={documento}, nome={nome}")
+        logger.info("=== NOVA REQUISIÇÃO SYNC ===")
+        logger.info(f"IP: {request.remote_addr}")
+        logger.info(f"User-Agent: {request.headers.get('User-Agent', 'N/A')}")
+        logger.info(f"Content-Type: {request.headers.get('Content-Type', 'N/A')}")
+        logger.info(f"Dados: UC={uc}, mes_ano={mes_ano}, documento={documento}, nome={nome}")
+        logger.info(f"Headers completos: {dict(request.headers)}")
         
         # Validação básica
         if not uc or not documento:
@@ -167,13 +222,32 @@ def busca_fatura_sync():
             }), 500
             
     except Exception as e:
+        logger.error(f"Erro interno na API: {e}")
         return jsonify({
             'success': False,
             'error': f'Internal error: {str(e)}'
         }), 500
 
+@app.route('/logs')
+def view_logs():
+    """Endpoint para visualizar os logs"""
+    try:
+        with open(log_file, 'r') as f:
+            logs = f.read()
+        return f"<pre>{logs}</pre>", 200, {'Content-Type': 'text/html'}
+    except Exception as e:
+        return f"Erro ao ler logs: {e}", 500
 
-
+@app.route('/logs/tail')
+def tail_logs():
+    """Endpoint para ver as últimas linhas do log"""
+    try:
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
+            last_lines = ''.join(lines[-50:])  # Últimas 50 linhas
+        return f"<pre>{last_lines}</pre>", 200, {'Content-Type': 'text/html'}
+    except Exception as e:
+        return f"Erro ao ler logs: {e}", 500
 
 if __name__ == '__main__':
     app.run(debug=True)
